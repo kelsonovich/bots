@@ -122,7 +122,7 @@ class NotificationService
             }
 
             $message = [];
-            $message[] = 'Результаты пакета <b>' . $result->package . '</b>:';
+            $message[] = 'Результаты пакета <b>' . $result->package . '</b>:' . "\n";
             foreach ($table as $key => $row) {
                 $total = end($row);
 

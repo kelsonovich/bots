@@ -1,5 +1,10 @@
 <?php
 
+use App\Enum\GameType;
+use App\Models\Schedule;
+use Carbon\Carbon;
+use DefStudio\Telegraph\Keyboard\ReplyButton;
+use DefStudio\Telegraph\Keyboard\ReplyKeyboard;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -32,5 +37,15 @@ Route::get('/notification', function () {
     return 'OK';
 });
 
+Route::prefix('/bot')->group(function () {
+    Route::post('mozgva', [\App\Http\Controllers\Mozgva\MozgvaController::class, 'webhook'])->name('mozgva-webhook');
 
+    return 'OK';
+});
+
+
+Route::get('/test', function () {
+
+    return 'OK';
+});
 
