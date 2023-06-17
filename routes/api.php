@@ -19,11 +19,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 Route::prefix('/bot')->group(function () {
-    try {
-        Route::post('mozgva', [\App\Http\Controllers\Mozgva\MozgvaController::class, 'webhook'])->name('mozgva-webhook');
-    } catch (\Exception) {
-        return 'NOT OK';
-    }
+    Route::post('mozgva', [\App\Http\Webhook\MozgvaWebhookHandler::class, 'webhook']);
 
     return 'OK';
 });

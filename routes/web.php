@@ -36,14 +36,3 @@ Route::get('/notification', function () {
 
     return 'OK';
 });
-
-
-Route::get('/test', [\App\Http\Controllers\Mozgva\MozgvaController::class, 'test'])->name('mozgva-test');
-
-//Route::get('/test', function () {
-////    \App\Service\Parsing\ParsingService::test();
-//
-//
-////    return 'OK';
-//});
-

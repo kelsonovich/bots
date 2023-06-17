@@ -3,6 +3,7 @@
 namespace App\Service\Response;
 
 use App\Enum\GameType;
+use App\Helper\Helper;
 use App\Models\Rating;
 use App\Models\Schedule;
 use Carbon\Carbon;
@@ -51,12 +52,13 @@ class Mozgva
     public static function execute(string $message, bool $isAdmin = false): array
     {
         $response = [];
+        $inlineButtons = [];
 
         if ($isAdmin) {
             if ($message === Mozgva::ADMIN_RESULT) {
                 $response = self::prepare(self::table($isAdmin));
             } else if ($message === Mozgva::ADMIN_TEAM_LIST) {
-                [$response, $inlineButtons] = self::teamList($isAdmin);
+                [$response, $inlineButtons] = self::teamList();
                 $response = self::prepare($response);
             }
 
@@ -67,7 +69,10 @@ class Mozgva
 
         switch ($message) {
             case (Mozgva::START):     $response = Mozgva::COMMAND_WELCOME; break;
-            case (Mozgva::SCHEDULE):  $response = self::prepare(self::schedule()); break;
+            case (Mozgva::SCHEDULE):
+                [$response, $inlineButtons] = self::schedule();
+                $response = self::prepare($response);
+                break;
             case (Mozgva::ALBUMS):    $response = [Mozgva::COMMAND_TEMPORARY_NOT_WORKING]; break;
             case (Mozgva::RATING):    $response = self::prepare(self::rating()); break;
             case (Mozgva::RESULTS):   $response = self::prepare(self::results()); break;
@@ -75,41 +80,58 @@ class Mozgva
             default:                  $response = [Mozgva::COMMAND_UNKNOWN]; break;
         }
 
-        return [$response, []];
+        return [$response, $inlineButtons];
     }
 
-    private static function schedule(): array
+    public static function schedule(int $page = 1): array
     {
+        $limit = 6;
+        $offset = ($page - 1) * $limit;
+
         $schedules = Schedule::where('game', GameType::MOZGVA)
             ->where('start', '>', (new Carbon(tz: 'Europe/Moscow')))
-            ->orderBy('start', 'ASC')
-            ->get();
+            ->orderBy('start', 'ASC');
+
+        $totalCount = $schedules->count();
+
+        $schedules = $schedules->offset($offset)->limit(5)->get();
 
         $message = [];
+        $message[] = "<b>Расписание игр:</b>\n";
+        $keyboard = Keyboard::make();
         foreach ($schedules as $schedule) {
-            $message[] = $schedule->full_title;
-            $message[] = trim($schedule->place) . ' ' . $schedule->price . '₽';
-
-            $date = (new Carbon($schedule->start, 'Europe/Moscow'))->addHours(-3)->locale('ru');
-            $message[] =
-                $date->format('j')
-                . ' ' .  mb_convert_case($date->getTranslatedMonthName('Do MMMM'), MB_CASE_TITLE)
-                . ', ' . mb_convert_case($date->getTranslatedDayName('Do MMMM'), MB_CASE_TITLE)
-                . ' в ' . $date->format('H:i');
-
-            $message[] = '';
+            $message = array_merge($message, Helper::getScheduleAsTelegramMessage($schedule));
         }
 
-        return $message;
+        $paginate = [];
+
+        if ($page >= 2) {
+            $paginate[] = Button::make('⬅️ Назад')->action('schedule')->param('page', ($page - 1));
+        }
+
+        if ($page * $limit < $totalCount) {
+            $paginate[] = Button::make('Вперед ➡️')->action('schedule')->param('page', ($page + 1));
+        }
+
+        if (count($paginate) > 0) {
+            $keyboard->row($paginate);
+        }
+
+        return [$message, $keyboard];
     }
 
-    private static function teamList(): array
+    public static function teamList(int $page = 1): array
     {
+        $limit = 10;
+        $offset = ($page - 1) * $limit;
+
         $schedules = Schedule::where('game', GameType::MOZGVA)
             ->where('start', '>', (new Carbon(tz: 'Europe/Moscow')))
-            ->orderBy('start', 'ASC')
-//            ->limit(10)
-            ->get();
+            ->orderBy('start', 'ASC');
+
+        $totalCount = $schedules->count();
+
+        $schedules = $schedules->offset($offset)->limit($limit)->get();
 
         $message = [];
         $message[] = 'Ссылки на списки команд:';
@@ -135,12 +157,19 @@ class Mozgva
             $keyboard->row($inlineButtons);
         }
 
-//        $keyboard->row([
-//            Button::make('⬅️ Назад')->action('back')->param('page', '0'),
-//            Button::make('➡️ Вперед')->action('forward')->param('page', '2'),
-//            Button::make('switch')->switchInlineQuery('foo')->currentChat(),
-//        ]);
+        $paginate = [];
 
+        if ($page >= 2) {
+            $paginate[] = Button::make('⬅️ Назад')->action('teamList')->param('page', ($page - 1));
+        }
+
+        if ($page * $limit < $totalCount) {
+            $paginate[] = Button::make('Вперед ➡️')->action('teamList')->param('page', ($page + 1));
+        }
+
+        if (count($paginate) > 0) {
+            $keyboard->row($paginate);
+        }
 
         return [$message, $keyboard];
     }
@@ -208,13 +237,13 @@ class Mozgva
             . $schedule->full_title . '</a>';
     }
 
-    private static function prepare(array $messageAsArray): array
+    public static function prepare(array $messageAsArray): array
     {
         return [implode("\n", $messageAsArray)];
     }
 
     public static function isAdmin(array $webhook): bool
     {
-        return in_array($webhook['message']['from']['username'], ['amadeus_vult', 'Bugsyro', 'amadeus3000']);
+        return in_array($webhook['from']['username'], ['amadeus_vult', 'Bugsyro', 'amadeus3000']);
     }
 }
