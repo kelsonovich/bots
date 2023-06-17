@@ -43,6 +43,7 @@ class Schedule extends Model
             $model->game = $gameType;
             $model->number = $number;
             $model->status = GameStatus::NEW;
+            $model->send_status = SendStatus::IN_QUEUE;
 
             $model->save();
         }

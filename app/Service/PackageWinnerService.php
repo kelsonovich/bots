@@ -24,7 +24,7 @@ class PackageWinnerService
             }
         }
 
-        dd($packages);
+//        dd($packages);
     }
 
     private static function isOver(PackageResult $packageResult): bool
@@ -52,39 +52,41 @@ class PackageWinnerService
             return $schedule->status === GameStatus::FINISHED->value;
         });
 
-        foreach ($schedules as $schedule) {
-            $result = Result::where(['game' => $schedule->game, 'number' => $schedule->number])->first();
+        if ($schedules->count() > 0) {
+            foreach ($schedules as $schedule) {
+                $result = Result::where(['game' => $schedule->game, 'number' => $schedule->number])->first();
 
-            $currentResults = json_decode($result->results, true);
+                $currentResults = json_decode($result->results, true);
 
-            if ($schedule->game === GameType::QUIZPLEASE->value) {
-                $currentResults = array_slice($currentResults, 1, 5);
+                if ($schedule->game === GameType::QUIZPLEASE->value) {
+                    $currentResults = array_slice($currentResults, 0, 5);
+                }
+
+                $results = array_merge($results, $currentResults);
             }
 
-            $results = array_merge($results, $currentResults);
-        }
+            $sortOrder = [];
 
-        $sortOrder = [];
+            if ($schedules->first()->game === GameType::MOZGVA->value) {
+                $sortOrder = [9, 8, 5, 7, 2, 3, 4, 6];
 
-        if ($schedules->first()->game === GameType::MOZGVA->value) {
-            $sortOrder = [9, 8, 5, 7, 2, 3, 4, 6];
+            } elseif ($schedules->first()->game === GameType::QUIZPLEASE->value) {
+                $length = count($results[0]);
 
-        } elseif ($schedules->first()->game === GameType::QUIZPLEASE->value) {
-            $length = count($results[0]);
-
-            foreach (range(1, ($length - 2)) as $round) {
-                $sortOrder[] = ($length - $round);
+                foreach (range(1, ($length - 2)) as $round) {
+                    $sortOrder[] = ($length - $round);
+                }
             }
+
+            foreach ($sortOrder as $item) {
+                $sort[] = fn (array $a, array $b) => $a[$item] <=> $b[$item];
+            }
+
+            $results = collect($results)->sortBy($sort);
+
+            $packageResult->results = array_reverse($results->toArray());
+            $packageResult->status = GameStatus::FINISHED;
+            $packageResult->save();
         }
-
-        foreach ($sortOrder as $item) {
-            $sort[] = fn (array $a, array $b) => $a[$item] <=> $b[$item];
-        }
-
-        $results = collect($results)->sortBy($sort);
-
-        $packageResult->results = array_reverse($results->toArray());
-        $packageResult->status = GameStatus::FINISHED;
-        $packageResult->save();
     }
 }

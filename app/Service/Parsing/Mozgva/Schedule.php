@@ -43,7 +43,6 @@ class Schedule extends ParsingSchedule
             $model->price = $game['PRICE'];
             $model->place = $game['PLACE'];
             $model->start = Carbon::createFromFormat('H:i d.m.Y', $game['TIME'] . ' ' . $game['DATE']);
-            $model->send_status = SendStatus::IN_QUEUE;
         }
 
         if ($model->package > 0) {

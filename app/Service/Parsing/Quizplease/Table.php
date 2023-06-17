@@ -6,6 +6,7 @@ use App\Enum\GameStatus;
 use App\Enum\GameType;
 use App\Enum\SendStatus;
 use App\Link\QuizPlease as QuizPleaseLink;
+use App\Models\Notification;
 use App\Models\Schedule as ScheduleModel;
 use App\Models\Result as ResultModel;
 use App\Models\Tables as TableModel;
@@ -36,7 +37,6 @@ class Table
         }
 
         $result->save();
-
     }
 
     private static function isFinished(int $number): bool
@@ -48,6 +48,10 @@ class Table
         $isFinished = false;
 
         $rows = self::$page[$number]->find('table.game-table tr');
+
+        if (count($rows) > 0) {
+            self::sendGameWasStarted($number);
+        }
 
         foreach ($rows as $key => $row) {
             if ($key === 0) {
@@ -116,6 +120,22 @@ class Table
             $results[] = $team;
         }
 
+        array_shift($results);
+
         ResultModel::setResults(self::$type, $number, $results);
+    }
+
+    private static function sendGameWasStarted(int $number): void
+    {
+        $schedule = ScheduleModel::where('number', $number)->where('game', self::$type)->first();
+
+        $message = [];
+
+        $message[] = 'Началась игра <b>' . $schedule->full_title . "</b>:";
+        $message[] = QuizPleaseLink::GAME . $schedule->number;
+
+        $message = implode("\n", $message);
+
+        Notification::firstOrCreate(['text' => $message]);
     }
 }

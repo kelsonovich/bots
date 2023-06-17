@@ -5,6 +5,7 @@ namespace App\Service\Parsing;
 use App\Service\Parsing\Mozgva\Schedule as MozgvaSchedule;
 use App\Service\Parsing\Mozgva\Rating as MozgvaRating;
 use App\Service\Parsing\Mozgva\Table as MozgvaTable;
+use App\Service\Parsing\Mozgva\TeamList as MozgvaTeamList;
 use App\Service\Parsing\Quizplease\Schedule as QuizpleaseSchedule;
 use App\Service\Parsing\Quizplease\Table as QuizpleaseTable;
 
@@ -24,5 +25,10 @@ class ParsingService
     {
         QuizpleaseTable::start();
         QuizpleaseSchedule::start();
+    }
+
+    public static function test(): void
+    {
+        MozgvaTeamList::start();
     }
 }

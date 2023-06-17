@@ -3,7 +3,10 @@
 namespace App\Http\Controllers\Mozgva;
 
 use App\Models\BotUsageLog;
+use DefStudio\Telegraph\Handlers\WebhookHandler;
+use DefStudio\Telegraph\Keyboard\Keyboard;
 use DefStudio\Telegraph\Keyboard\ReplyButton;
+use DefStudio\Telegraph\Keyboard\Button;
 use DefStudio\Telegraph\Keyboard\ReplyKeyboard;
 use DefStudio\Telegraph\Models\TelegraphBot;
 use DefStudio\Telegraph\Models\TelegraphChat;
@@ -13,58 +16,84 @@ use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Http\Request;
 use App\Service\Response\Mozgva;
 
-class MozgvaController extends BaseController
+class MozgvaController extends WebhookHandler
 {
     use AuthorizesRequests, ValidatesRequests;
 
-    private TelegraphChat $chat;
-
-    public function webhook(Request $request): void
+    public function webhook(Request $request)
     {
         $webhook = $request->json()->all();
+        $chat = TelegraphChat::find(15);
+        try {
+            if (array_key_exists('callback_query', $webhook)) {
+                $this->setChat($webhook['callback_query']['message']);
 
-        $this->setChat($webhook);
-        $message = $webhook['message']['text'];
+//                $this->chat->replyWebhook($webhook['callback_query']['id'], '')
+//                    ->withoutPreview()
+//                    ->send();
 
-        if ((int) $webhook['message']['from']['id'] === 252276645) {
+                $this->reply('qqweqww');
+            } else {
+                $message = $webhook['message']['text'];
+                $this->setChat($webhook['message']);
+                $isAdmin = Mozgva::isAdmin($webhook);
 
-        } else {
+                [$response, $inlineButtons] = Mozgva::execute($message, $isAdmin);
 
-        }
+                $originalButtons = \App\Service\Response\Mozgva::BUTTONS;
 
-        $response = Mozgva::execute($message);
+                if ($isAdmin) {
+                    $originalButtons = array_merge($originalButtons, \App\Service\Response\Mozgva::ADMIN_BUTTONS);
+                }
 
-        $keyboard = ReplyKeyboard::make();
-        foreach (\App\Service\Response\Mozgva::BUTTONS as $row) {
-            $buttons = [];
-            foreach ($row as $button) {
-                $buttons[] = ReplyButton::make($button);
+                $keyboard = ReplyKeyboard::make();
+                foreach ($originalButtons as $row) {
+                    $buttons = [];
+                    foreach ($row as $button) {
+                        $buttons[] = ReplyButton::make($button);
+                    }
+
+                    $keyboard = $keyboard->row($buttons);
+                }
+
+                if ($isAdmin) {
+                    $this->chat->html($response[0])
+                        ->keyboard($inlineButtons)
+                        ->withoutPreview()
+                        ->send();
+                } else {
+                    foreach ($response as $responseMessage) {
+                        $this->chat->html($responseMessage)
+                            ->replyKeyboard($keyboard->resize())
+                            ->withoutPreview()
+                            ->send();
+                    }
+                }
             }
 
-            $keyboard = $keyboard->row($buttons);
-        }
+        } catch (\Exception $exception) {
+            $chat->message('<pre>' . json_encode([$exception->getMessage()], JSON_UNESCAPED_UNICODE) . '</pre>')->send();
+            $chat->message('<pre>' . json_encode($webhook, JSON_UNESCAPED_UNICODE) . '</pre>')->send();
 
-        foreach ($response as $responseMessage) {
-            $this->chat->html($responseMessage)
-                ->replyKeyboard($keyboard->resize())
-                ->withoutPreview()
-                ->send();
+            dd($exception, $exception->getMessage());
         }
 
         $this->setLog($webhook);
     }
 
-    private function setChat(array $request): void
+    private function setChat(array $from): void
     {
         $bot = TelegraphBot::where('name', env('TG_NAME_MOZGVA'))->first();
-        $this->chat = TelegraphChat::where('chat_id', $request['message']['chat']['id'])
-            ->where('telegraph_bot_id', $bot->id)
-            ->first();
+
+        $this->chat = TelegraphChat::where([
+            'chat_id' => $from['chat']['id'],
+            'telegraph_bot_id' => $bot->id,
+        ])->first();
 
         if (! $this->chat) {
             $this->chat = $bot->chats()->create([
-                'chat_id' => $request['message']['chat']['id'],
-                'name' => $request['message']['chat']['username'] ?? $request['message']['chat']['first_name'],
+                'chat_id' => $from['chat']['id'],
+                'name' => $from['chat']['username'] ?? $from['chat']['first_name'],
             ]);
         }
     }
@@ -77,5 +106,10 @@ class MozgvaController extends BaseController
             'username' =>  $request['message']['chat']['username'] ?? $request['message']['chat']['first_name'],
             'command' => $request['message']['text'],
         ]);
+    }
+
+    public function test()
+    {
+        return view('test');
     }
 }

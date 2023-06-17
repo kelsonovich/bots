@@ -12,6 +12,8 @@ class Mozgva
     const RESULT       = 'https://mozgva.com/online?city_id=1';
     const SCHEDULE     = 'https://mozgva.com/calendar?city_id=1';
     const GAME         = 'https://mozgva.com/games/#GAME_ID#/report';
+    const TEAM_LIST    = 'https://mozgva.com/calendar?game_id=#GAME_ID##teams_list';
+    const SPOILER_GAME = 'https://mozgva.com/games/#GAME_ID#/result_public?code=GhVzgPoll5Gv4SfGvWrFgSvxsdYgf23Adfs';
 
     const VK_GROUP_ID  = '-95512899';
 

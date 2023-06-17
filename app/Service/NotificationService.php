@@ -42,6 +42,8 @@ class NotificationService
                 ->send();
 
             Notification::setSend($notification);
+
+            usleep(500 * 1000);
         }
     }
 
@@ -54,11 +56,7 @@ class NotificationService
 
             $table = json_decode($result->results, true);
 
-            if ($result->game === GameType::QUIZPLEASE->value) {
-                $table = array_slice($table, 1, 3);
-            } else {
-                $table = array_slice($table, 0, 3);
-            }
+            $table = array_slice($table, 0, 3);
 
             $message = [];
 

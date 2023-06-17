@@ -7,21 +7,24 @@ use App\Models\Rating;
 use App\Models\Schedule;
 use Carbon\Carbon;
 use App\Link\Mozgva as MozgvaLink;
+use DefStudio\Telegraph\Keyboard\Button;
+use DefStudio\Telegraph\Keyboard\Keyboard;
 
 class Mozgva
 {
     const START     = '/start';
     const SCHEDULE  = 'Расписание игр';
-    const TEAM_LIST = 'Списки команд';
     const ALBUMS    = 'Фотографии';
     const RATING    = 'Рейтинг';
     const RESULTS   = 'Результаты';
     const TABLE     = 'Онлайн табличка';
 
+    const ADMIN_RESULT = 'Спойлеры';
+    const ADMIN_TEAM_LIST = 'Списки команд';
+
     const COMMANDS = [
         Mozgva::START,
         Mozgva::SCHEDULE,
-        Mozgva::TEAM_LIST,
         Mozgva::ALBUMS,
         Mozgva::RATING,
         Mozgva::RESULTS,
@@ -29,9 +32,12 @@ class Mozgva
     ];
 
     const BUTTONS = [
-        [Mozgva::SCHEDULE, Mozgva::TEAM_LIST],
-        [Mozgva::ALBUMS, Mozgva::RATING],
+        [Mozgva::SCHEDULE, Mozgva::RATING],
         [Mozgva::RESULTS, Mozgva::TABLE],
+    ];
+
+    const ADMIN_BUTTONS = [
+        [Mozgva::ADMIN_TEAM_LIST, Mozgva::ADMIN_RESULT],
     ];
 
     const COMMAND_NOT_ALLOWED = 'Данная опция отключена организатором игры.';
@@ -42,21 +48,34 @@ class Mozgva
     ];
     const COMMAND_UNKNOWN = 'Неизвестная команда. Воспользуйся клавиатурой';
 
-    public static function execute(string $message): array
+    public static function execute(string $message, bool $isAdmin = false): array
     {
-        switch ($message) {
-            case (Mozgva::START):     return Mozgva::COMMAND_WELCOME;
-            case (Mozgva::SCHEDULE):  return self::prepare(self::schedule());
-            case (Mozgva::TEAM_LIST): return [Mozgva::COMMAND_NOT_ALLOWED];
-            case (Mozgva::ALBUMS):    return [Mozgva::COMMAND_TEMPORARY_NOT_WORKING];
-            case (Mozgva::RATING):    return self::prepare(self::rating());
-            case (Mozgva::RESULTS):   return self::prepare(self::results());
-            case (Mozgva::TABLE):     return self::prepare(self::table());
-            default:                  return [Mozgva::COMMAND_UNKNOWN];
+        $response = [];
 
+        if ($isAdmin) {
+            if ($message === Mozgva::ADMIN_RESULT) {
+                $response = self::prepare(self::table($isAdmin));
+            } else if ($message === Mozgva::ADMIN_TEAM_LIST) {
+                [$response, $inlineButtons] = self::teamList($isAdmin);
+                $response = self::prepare($response);
+            }
+
+            if ($response) {
+                return [$response, $inlineButtons ?? []];
+            }
         }
 
-        return [];
+        switch ($message) {
+            case (Mozgva::START):     $response = Mozgva::COMMAND_WELCOME; break;
+            case (Mozgva::SCHEDULE):  $response = self::prepare(self::schedule()); break;
+            case (Mozgva::ALBUMS):    $response = [Mozgva::COMMAND_TEMPORARY_NOT_WORKING]; break;
+            case (Mozgva::RATING):    $response = self::prepare(self::rating()); break;
+            case (Mozgva::RESULTS):   $response = self::prepare(self::results()); break;
+            case (Mozgva::TABLE):     $response = self::prepare(self::table()); break;
+            default:                  $response = [Mozgva::COMMAND_UNKNOWN]; break;
+        }
+
+        return [$response, []];
     }
 
     private static function schedule(): array
@@ -84,7 +103,49 @@ class Mozgva
         return $message;
     }
 
-    private static function table(): array
+    private static function teamList(): array
+    {
+        $schedules = Schedule::where('game', GameType::MOZGVA)
+            ->where('start', '>', (new Carbon(tz: 'Europe/Moscow')))
+            ->orderBy('start', 'ASC')
+//            ->limit(10)
+            ->get();
+
+        $message = [];
+        $message[] = 'Ссылки на списки команд:';
+        $keyboard = Keyboard::make();
+        foreach ($schedules->chunk(2) as $row) {
+            $inlineButtons = [];
+
+            foreach ($row as $schedule) {
+                $newTitle = str_replace('Мозгва', '', $schedule->title);
+
+                $title = [];
+                foreach(explode(' ', $schedule->full_title) as $part) {
+                    if (is_numeric($part)) {
+                        $title[] = $part;
+                    }
+                }
+
+                $inlineButtons[] = Button::make($newTitle . ' ' . implode('.', $title))->url(
+                    str_replace('#GAME_ID#', $schedule->number, MozgvaLink::TEAM_LIST)
+                );
+            }
+
+            $keyboard->row($inlineButtons);
+        }
+
+//        $keyboard->row([
+//            Button::make('⬅️ Назад')->action('back')->param('page', '0'),
+//            Button::make('➡️ Вперед')->action('forward')->param('page', '2'),
+//            Button::make('switch')->switchInlineQuery('foo')->currentChat(),
+//        ]);
+
+
+        return [$message, $keyboard];
+    }
+
+    private static function table(bool $isAdmin = false): array
     {
         $date = (new Carbon(tz: 'Europe/Moscow'));
 
@@ -94,9 +155,18 @@ class Mozgva
             ->get();
 
         $message = [];
-        $message[] = "Онлайн таблицы:\n";
+
+        if ($isAdmin) {
+            $message[] = "Таблица со спойлерами:\n";
+            $link = MozgvaLink::SPOILER_GAME;
+
+        } else {
+            $link = MozgvaLink::GAME;
+            $message[] = "Онлайн таблицы:\n";
+        }
+
         foreach ($results as $result) {
-            $message[] = self::getLink($result);
+            $message[] = self::getLink($result, $link);
         }
 
         return $message;
@@ -132,13 +202,19 @@ class Mozgva
         return $message;
     }
 
-    private static function getLink(Schedule $schedule): string
+    private static function getLink(Schedule $schedule, string $link = MozgvaLink::GAME): string
     {
-        return '<a href="' . str_replace('#GAME_ID#', $schedule->number, MozgvaLink::GAME) . '"> ' . $schedule->full_title . '</a>';
+        return '<a href="' . str_replace('#GAME_ID#', $schedule->number, $link) . '"> '
+            . $schedule->full_title . '</a>';
     }
 
     private static function prepare(array $messageAsArray): array
     {
         return [implode("\n", $messageAsArray)];
+    }
+
+    public static function isAdmin(array $webhook): bool
+    {
+        return in_array($webhook['message']['from']['username'], ['amadeus_vult', 'Bugsyro', 'amadeus3000']);
     }
 }

@@ -17,3 +17,13 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
+
+Route::prefix('/bot')->group(function () {
+    try {
+        Route::post('mozgva', [\App\Http\Controllers\Mozgva\MozgvaController::class, 'webhook'])->name('mozgva-webhook');
+    } catch (\Exception) {
+        return 'NOT OK';
+    }
+
+    return 'OK';
+});

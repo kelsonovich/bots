@@ -37,15 +37,13 @@ Route::get('/notification', function () {
     return 'OK';
 });
 
-Route::prefix('/bot')->group(function () {
-    Route::post('mozgva', [\App\Http\Controllers\Mozgva\MozgvaController::class, 'webhook'])->name('mozgva-webhook');
 
-    return 'OK';
-});
+Route::get('/test', [\App\Http\Controllers\Mozgva\MozgvaController::class, 'test'])->name('mozgva-test');
 
-
-Route::get('/test', function () {
-
-    return 'OK';
-});
+//Route::get('/test', function () {
+////    \App\Service\Parsing\ParsingService::test();
+//
+//
+////    return 'OK';
+//});
 
